@@ -6,6 +6,8 @@ import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { TextureLoader } from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { AnimationMixer } from 'three';
+
 // Setup
 
 const scene = new THREE.Scene();
@@ -16,7 +18,7 @@ spotLight.position.set(0, 0, 10);
 spotLight.angle = Math.PI / 4;
 spotLight.penumbra = 0.1;
 spotLight.decay = 2;
-spotLight.distance = 1000;
+spotLight.distance = 200;
 spotLight.castShadow = true;
 scene.add(spotLight);
 
@@ -39,16 +41,20 @@ renderer.outputEncoding = THREE.sRGBEncoding;
 
 renderer.render(scene, camera);
 
+
+
 // Torus 
 
 const geometry = new THREE.TorusGeometry(24, 0.2, 16, 100);
 const material = new THREE.MeshStandardMaterial({ color: 0xff6347 });
 const torus = new THREE.Mesh(geometry, material);
 
-torus.position.set(0, 0, -50); // Set the position relative to the camera
-//torus.position.set(-10, 4, -30); // Set the position relative to the camera
+//torus.position.set(0, 0, 0); // Set the position relative to the camera
+torus.position.set(0, 0, -30); // Set the position relative to the camera
 
-camera.add(torus);
+torus.scale.set(1, 1, 1); // Adjust these values as needed
+
+scene.add(torus); // Make sure to add the torus to the scene, not the camera
 
 // Lights
 
@@ -58,9 +64,11 @@ pointLight.position.set(5, 5, 5);
 const ambientLight = new THREE.AmbientLight(0xffffff);
 scene.add(pointLight, ambientLight);
 
-// Add this after creating your lights
-console.log('Ambient Light:', ambientLight);
-console.log('Spot Light:', spotLight);
+// Adjust light positions and intensities
+ambientLight.intensity = 0.5;
+spotLight.intensity = 1;
+spotLight.position.set(0, 10, 10);
+scene.add(spotLight); // Make sure the spotlight is added to the scene
 
 // Also, try increasing the intensity of your lights
 ambientLight.intensity = 0.5;
@@ -95,12 +103,16 @@ Array(200).fill().forEach(addStar);
 const spaceTexture = new THREE.TextureLoader().load('space.jpg');
 scene.background = spaceTexture;
 
-// Load the Tamir.fbx model
-const loader = new GLTFLoader();
+// Load the Tamir_kick.glb model
 let tamirModel;
+let mixer;
 
+// Add this near the top of your file with other variable declarations
+let animationSpeed = 0.25; // 0.5 means half speed, 1 would be normal speed, 2 would be double speed, etc.
+
+const loader = new GLTFLoader();
 loader.load(
-    'tamir.glb',
+    'tamir_kick.glb',
     function (gltf) {
         console.log('GLB loaded:', gltf);
 
@@ -108,8 +120,8 @@ loader.load(
         
         const radius = torus.geometry.parameters.radius;
         tamirModel.rotation.y = -(Math.PI / 2); // Rotate 90 degrees on the y-axis
-        tamirModel.scale.set(13, 13, 13);
-        tamirModel.position.set(0, -(radius/2), -50); // Set the position relative to the torus
+        tamirModel.scale.set(10, 10, 10);
+        tamirModel.position.set(0, -radius/2, -50); // Set the position relative to the torus
 
         tamirModel.traverse(function (child) {
             if (child.isMesh) {
@@ -130,8 +142,25 @@ loader.load(
             }
         });
 
-        camera.add(tamirModel); // Add the model to the camera
-        scene.add(camera); // Ensure the camera is added to the scene
+        scene.add(tamirModel); // Add the model to the scene, not the camera
+
+        // Create an AnimationMixer for the model
+        mixer = new AnimationMixer(tamirModel);
+
+        // Check if there are animations in the gltf file
+        if (gltf.animations && gltf.animations.length > 0) {
+            // Get the first animation
+            const animation = gltf.animations[0];
+            
+            // Create an AnimationAction and play it
+            const action = mixer.clipAction(animation);
+            action.setEffectiveTimeScale(animationSpeed); // Set the speed of the animation
+            action.play();
+
+            console.log('Animation loaded and playing at', animationSpeed, 'speed');
+        } else {
+            console.warn('No animations found in the GLB file');
+        }
 
         // Add a spotlight in front of the model
         const modelSpotLight = new THREE.SpotLight(0xffffff, 1);
@@ -139,10 +168,10 @@ loader.load(
         modelSpotLight.angle = Math.PI / 4; // Narrow the spotlight angle
         modelSpotLight.penumbra = 0.1; // Soften the edges of the spotlight
         modelSpotLight.decay = 2; // Light decay
-        modelSpotLight.distance = 1000; // Maximum range of the light
+        modelSpotLight.distance = 200; // Maximum range of the light
         modelSpotLight.castShadow = true; // Enable shadow casting
 
-        camera.add(modelSpotLight); // Add the spotlight to the camera so it moves with the model
+        scene.add(modelSpotLight); // Add the spotlight to the scene, not the camera
 
         // Render the scene after the model is loaded
         renderer.render(scene, camera);
@@ -207,6 +236,11 @@ rotateCameraToLookAt();
 function animate() {
   requestAnimationFrame(animate);
 
+  // Update the mixer on each frame
+  if (mixer) {
+      mixer.update(0.016 * animationSpeed); // Use the animationSpeed variable
+  }
+
   //torus.rotation.x += 0.005;
   //torus.rotation.y += 0.001;
   //torus.rotation.z += 0.005;
@@ -234,8 +268,27 @@ function compactGLB(bool) {
     const radius = torus.geometry.parameters.radius;
 
     const targetPositionZ = bool ? -35 : -50;
-    const targetPositionY = bool ? -15 : -(radius/2);
-    const targetScale = bool ? 16 : 13; // Adjust these values as needed
+    const targetPositionY = bool ? -20 : -((radius + 5)/2);
+    const targetScale = bool ? 16 : 10; // Adjust these values as needed
+
+    // Adjust animation speed based on scroll
+    const scrollPosition = window.scrollY;
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    const scrollPercentage = scrollPosition / maxScroll;
+
+    
+    // Adjust this formula to get the desired speed range
+    animationSpeed = 0.25 + (scrollPercentage * 0.75); // This will give a range from 0.25 to 1
+
+    // Update the animation action's time scale
+    if (mixer) {
+        const action = mixer.existingAction;
+        if (action) {
+            action.setEffectiveTimeScale(animationSpeed);
+        }
+    }
+
+    console.log('Animation speed set to:', animationSpeed);
 
     const duration = 2000; // Duration of the animation in milliseconds
     const startTime = performance.now();
@@ -264,9 +317,10 @@ window.compactGLB = compactGLB;
 function compactTorus(bool) {
     if (!torus) return; // Ensure the torus exists
 
-    const targetRadius = bool ? 18 : 24; // Smaller radius when compact
+    const targetRadius = bool ? 10 : 24; // Smaller radius when compact
     const targetTubeRadius = bool ? 0.15 : 0.2; // Smaller tube radius when compact
-    const targetPositionZ = bool ? -35 : -50; // Move closer when compact
+    const targetPositionZ = bool ? -35 : -30; // Move closer when compact
+    const targetPositionY = bool ? 0 : 0;
 
     const duration = 2000; // Duration of the animation in milliseconds
     const startTime = performance.now();
@@ -284,6 +338,7 @@ function compactTorus(bool) {
 
         // Update position
         torus.position.z = THREE.MathUtils.lerp(torus.position.z, targetPositionZ, progress);
+        torus.position.y = THREE.MathUtils.lerp(torus.position.y, targetPositionY, progress);
 
         if (progress < 1) {
             requestAnimationFrame(animate);
@@ -295,3 +350,24 @@ function compactTorus(bool) {
 
 // Expose the function to the global scope
 window.compactTorus = compactTorus;
+
+// Modify the scroll event listener to call compactGLB
+window.addEventListener('scroll', () => {
+    const frameContainer = document.getElementById('frameContainer');
+    const mainContent = document.getElementById('mainContent');
+    if (window.scrollY > 0) {
+        frameContainer.classList.add('scrolled');
+        mainContent.classList.add('scrolled');
+        setTimeout(() => {
+            window.compactTorus(true);
+            window.compactGLB(true);
+        }, 250);
+    } else {
+        frameContainer.classList.remove('scrolled');
+        mainContent.classList.remove('scrolled');
+        setTimeout(() => {
+            window.compactTorus(false);
+            window.compactGLB(false);
+        }, 250);
+    }
+});
