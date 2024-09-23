@@ -18,12 +18,14 @@
         box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
         overflow: hidden;
         z-index: 100; /* Ensure it is above the main content */
-        transition: transform 1s ease, height 0.5s ease; /* Smooth transition */
+        transition: transform 1s ease, height 1s ease; /* Smooth transition */
       }
 
       .frame-container.scrolled {
         height: 200px; /* Reduce height by 300px (150px from top and 150px from bottom) */
         transform: translate(-50%, -200%); /* Move frame up by 150px */
+        transition: transform 0.5s ease, height 0.5s ease; /* Smooth transition */
+
       }
 
       .frame-container canvas {
@@ -32,6 +34,7 @@
         left: 0;
         width: 100%;
         height: 100%;
+        transition: top 1.5s ease;
       }
 
 
@@ -165,13 +168,17 @@
         if (window.scrollY > 0) {
           frameContainer.classList.add('scrolled');
           mainContent.classList.add('scrolled');
-          window.compactTorus(true); // Add 100 to the torus's y position
-          window.compactFBX(true); // Add 100 to the FBX model's y position
+          setTimeout(() => {
+            window.compactTorus(true);
+            window.compactFBX(true); // Changed from compactOBJ to compactFBX
+          }, 250);
         } else {
           frameContainer.classList.remove('scrolled');
           mainContent.classList.remove('scrolled');
-          window.compactTorus(false); // Reset the torus's y position
-          window.compactFBX(false); // Reset the FBX model's y position
+          setTimeout(() => {
+            window.compactTorus(false);
+            window.compactFBX(false); // Changed from compactOBJ to compactFBX
+          }, 250);
         }
       });
     </script>
