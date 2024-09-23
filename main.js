@@ -5,10 +5,20 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { TextureLoader } from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
-
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 // Setup
 
 const scene = new THREE.Scene();
+
+// Add this near the beginning of your file, after scene creation
+const spotLight = new THREE.SpotLight(0xffffff, 1);
+spotLight.position.set(0, 0, 10);
+spotLight.angle = Math.PI / 4;
+spotLight.penumbra = 0.1;
+spotLight.decay = 2;
+spotLight.distance = 1000;
+spotLight.castShadow = true;
+scene.add(spotLight);
 
 // Get the frame container dimensions
 const frameContainer = document.getElementById('frameContainer');
@@ -25,6 +35,7 @@ const renderer = new THREE.WebGLRenderer({
 
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(frameWidth, frameHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
 
 renderer.render(scene, camera);
 
@@ -46,6 +57,15 @@ pointLight.position.set(5, 5, 5);
 
 const ambientLight = new THREE.AmbientLight(0xffffff);
 scene.add(pointLight, ambientLight);
+
+// Add this after creating your lights
+console.log('Ambient Light:', ambientLight);
+console.log('Spot Light:', spotLight);
+
+// Also, try increasing the intensity of your lights
+ambientLight.intensity = 0.5;
+spotLight.intensity = 1;
+spotLight.position.set(0, 10, 10);
 
 // Helpers
 
@@ -76,61 +96,64 @@ const spaceTexture = new THREE.TextureLoader().load('space.jpg');
 scene.background = spaceTexture;
 
 // Load the Tamir.fbx model
-const loader = new FBXLoader();
+const loader = new GLTFLoader();
 let tamirModel;
 
-loader.load('Tamir.fbx', function (object) {
-    const radius = torus.geometry.parameters.radius;
-    object.rotation.y = Math.PI / 2; // Rotate 90 degrees on the y-axis
-    object.scale.set(13, 13, 13);
-    object.position.set(0, -(radius/2), -50); // Set the position relative to the torus
+loader.load(
+    'tamir.glb',
+    function (gltf) {
+        console.log('GLB loaded:', gltf);
 
-    // Apply materials and textures
-    object.traverse(function (child) {
-        if (child.isMesh) {
-            // Check if the child already has a material with a map (texture)
-            if (child.material && child.material.map) {
-                // If it does, we can just use that material
-                child.material.needsUpdate = true;
-            } else {
-                // If it doesn't, we can create a new material
-                child.material = new THREE.MeshPhongMaterial({
-                    color: 0xffffff,
-                    specular: 0x333333,
-                    shininess: 25
-                });
+        tamirModel = gltf.scene;
+        
+        const radius = torus.geometry.parameters.radius;
+        tamirModel.rotation.y = -(Math.PI / 2); // Rotate 90 degrees on the y-axis
+        tamirModel.scale.set(13, 13, 13);
+        tamirModel.position.set(0, -(radius/2), -50); // Set the position relative to the torus
+
+        tamirModel.traverse(function (child) {
+            if (child.isMesh) {
+                console.log('Mesh found:', child.name);
+                console.log('Material:', child.material);
+
+                // Enable shadow casting and receiving for each mesh
+                child.castShadow = true;
+                child.receiveShadow = true;
+
+                if (child.material.map) {
+                    console.log('Texture:', child.material.map);
+                    child.material.map.encoding = THREE.sRGBEncoding;
+                    child.material.needsUpdate = true;
+                } else {
+                    console.log('No texture found for this mesh');
+                }
             }
-        }
-    });
+        });
 
-    tamirModel = object; // Store the model reference
-    camera.add(object); // Add the model to the camera
+        camera.add(tamirModel); // Add the model to the camera
+        scene.add(camera); // Ensure the camera is added to the scene
 
-    // Add a spotlight in front of the model
-    const spotLight = new THREE.SpotLight(0xffffff, 1);
-    spotLight.position.set(0, 0, 10); // Position the light in front of the model
-    spotLight.target = tamirModel; // Point the light at the model
-    spotLight.angle = Math.PI / 4; // Narrow the spotlight angle
-    spotLight.penumbra = 0.1; // Soften the edges of the spotlight
-    spotLight.decay = 2; // Light decay
-    spotLight.distance = 1000; // Maximum range of the light
+        // Add a spotlight in front of the model
+        const modelSpotLight = new THREE.SpotLight(0xffffff, 1);
+        modelSpotLight.position.set(0, 0, 10); // Position the light in front of the model
+        modelSpotLight.angle = Math.PI / 4; // Narrow the spotlight angle
+        modelSpotLight.penumbra = 0.1; // Soften the edges of the spotlight
+        modelSpotLight.decay = 2; // Light decay
+        modelSpotLight.distance = 1000; // Maximum range of the light
+        modelSpotLight.castShadow = true; // Enable shadow casting
 
-    // // Add a helper to visualize the spotlight (optional, remove in production)
-    // const spotLightHelper = new THREE.SpotLightHelper(spotLight);
-    // scene.add(spotLightHelper);
+        camera.add(modelSpotLight); // Add the spotlight to the camera so it moves with the model
 
-    camera.add(spotLight); // Add the spotlight to the camera so it moves with the model
-
-    scene.add(camera); // Ensure the camera is added to the scene
-}, 
-// onProgress callback
-function (xhr) {
-    console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-},
-// onError callback
-function (error) {
-    console.error('An error happened', error);
-});
+        // Render the scene after the model is loaded
+        renderer.render(scene, camera);
+    },
+    function (xhr) {
+        console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+    },
+    function (error) {
+        console.error('An error happened', error);
+    }
+);
 
 // Moon
 
@@ -187,6 +210,7 @@ function animate() {
   //torus.rotation.x += 0.005;
   //torus.rotation.y += 0.001;
   //torus.rotation.z += 0.005;
+  //camera.rotateY(0.01);
 
   //torus.position.x += Math.sin(Date.now() * 0.001);
 
@@ -204,7 +228,7 @@ function animate() {
 
 animate();
 
-function compactFBX(bool) {
+function compactGLB(bool) {
     if (!tamirModel) return; // Ensure the model is loaded
 
     const radius = torus.geometry.parameters.radius;
@@ -235,7 +259,7 @@ function compactFBX(bool) {
 }
 
 // Expose the function to the global scope
-window.compactFBX = compactFBX;
+window.compactGLB = compactGLB;
 
 function compactTorus(bool) {
     if (!torus) return; // Ensure the torus exists
