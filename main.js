@@ -154,10 +154,9 @@ loader.load(
             
             // Create an AnimationAction and play it
             const action = mixer.clipAction(animation);
-            action.setEffectiveTimeScale(animationSpeed); // Set the speed of the animation
             action.play();
-
-            console.log('Animation loaded and playing at', animationSpeed, 'speed');
+            mixer.existingAction = action; // Store the action for later use
+            console.log('Animation loaded and playing');
         } else {
             console.warn('No animations found in the GLB file');
         }
@@ -238,7 +237,7 @@ function animate() {
 
   // Update the mixer on each frame
   if (mixer) {
-      mixer.update(0.016 * animationSpeed); // Use the animationSpeed variable
+      mixer.update(0.016); // Use a fixed delta time, the speed is controlled by mixer.timeScale
   }
 
   //torus.rotation.x += 0.005;
@@ -262,35 +261,85 @@ function animate() {
 
 animate();
 
+// Add this near the top of your file
+let debugPanel;
+
+// Add this function to create a debug panel
+function createDebugPanel() {
+    debugPanel = document.createElement('div');
+    debugPanel.style.position = 'fixed';
+    debugPanel.style.top = '10px';
+    debugPanel.style.left = '10px';
+    debugPanel.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    debugPanel.style.color = 'white';
+    debugPanel.style.padding = '10px';
+    debugPanel.style.fontFamily = 'monospace';
+    debugPanel.style.zIndex = '1000';
+    document.body.appendChild(debugPanel);
+}
+
+// Call this function after your scene is set up
+createDebugPanel();
+
 function compactGLB(bool) {
-    if (!tamirModel) return; // Ensure the model is loaded
+    if (!tamirModel || !mixer) {
+        console.log('Model or mixer not loaded yet');
+        return;
+    }
 
     const radius = torus.geometry.parameters.radius;
 
     const targetPositionZ = bool ? -35 : -50;
     const targetPositionY = bool ? -20 : -((radius + 5)/2);
-    const targetScale = bool ? 16 : 10; // Adjust these values as needed
+    const targetScale = bool ? 16 : 10;
 
-    // Adjust animation speed based on scroll
     const scrollPosition = window.scrollY;
     const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
     const scrollPercentage = scrollPosition / maxScroll;
 
-    
-    // Adjust this formula to get the desired speed range
-    animationSpeed = 0.25 + (scrollPercentage * 0.75); // This will give a range from 0.25 to 1
+    const action = mixer.existingAction || mixer._actions[0];
+    if (action) {
+        let currentTime = 0;
+        let totalDuration = 1; // Default to 1 if we can't get the actual duration
 
-    // Update the animation action's time scale
-    if (mixer) {
-        const action = mixer.existingAction;
-        if (action) {
-            action.setEffectiveTimeScale(animationSpeed);
+        // Try to get the current time and total duration
+        if (action._clip) {
+            currentTime = action.time % action._clip.duration;
+            totalDuration = action._clip.duration;
+        } else if (action.getClip) {
+            const clip = action.getClip();
+            currentTime = action.time % clip.duration;
+            totalDuration = clip.duration;
         }
+
+        const animationProgress = currentTime / totalDuration;
+        animationSpeed = Math.max(0.2 - (scrollPercentage * 2), 0.01);
+
+
+        // Instead of using setEffectiveTimeScale, we'll adjust the update delta
+        mixer.timeScale = animationSpeed;
+
+        // Update debug panel
+        debugPanel.innerHTML = `
+            Scroll %: ${scrollPercentage.toFixed(2)}<br>
+            Anim Progress: ${animationProgress.toFixed(2)}<br>
+            Anim Speed: ${animationSpeed.toFixed(2)}<br>
+            Current Time: ${currentTime.toFixed(2)}<br>
+            Total Duration: ${totalDuration.toFixed(2)}
+        `;
+
+        console.log('Animation Debug:', {
+            scrollPercentage,
+            animationProgress,
+            animationSpeed,
+            currentTime,
+            totalDuration
+        });
+    } else {
+        console.log('No animation action found');
     }
 
-    console.log('Animation speed set to:', animationSpeed);
-
-    const duration = 2000; // Duration of the animation in milliseconds
+    const duration = 2000;
     const startTime = performance.now();
 
     function animate() {
@@ -319,7 +368,7 @@ function compactTorus(bool) {
 
     const targetRadius = bool ? 10 : 24; // Smaller radius when compact
     const targetTubeRadius = bool ? 0.15 : 0.2; // Smaller tube radius when compact
-    const targetPositionZ = bool ? -35 : -30; // Move closer when compact
+    const targetPositionZ = bool ? -40 : -30; // Move closer when compact
     const targetPositionY = bool ? 0 : 0;
 
     const duration = 2000; // Duration of the animation in milliseconds
@@ -369,5 +418,32 @@ window.addEventListener('scroll', () => {
             window.compactTorus(false);
             window.compactGLB(false);
         }, 250);
+    }
+});
+
+// Add a function to manually control animation progress
+function setAnimationProgress(progress) {
+    if (!mixer || !mixer._actions[0]) return;
+    const action = mixer._actions[0];
+    let duration = 1; // Default to 1 if we can't get the actual duration
+    if (action._clip) {
+        duration = action._clip.duration;
+    } else if (action.getClip) {
+        duration = action.getClip().duration;
+    }
+    action.time = duration * progress;
+    mixer.update(0);
+    compactGLB(window.scrollY > 0);
+}
+
+// Expose this function globally for testing
+window.setAnimationProgress = setAnimationProgress;
+
+// Add keyboard controls for testing
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowRight') {
+        setAnimationProgress((mixer._actions[0].time / mixer._actions[0].getClip().duration + 0.1) % 1);
+    } else if (event.key === 'ArrowLeft') {
+        setAnimationProgress((mixer._actions[0].time / mixer._actions[0].getClip().duration - 0.1 + 1) % 1);
     }
 });
