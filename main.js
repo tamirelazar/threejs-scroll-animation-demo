@@ -268,11 +268,11 @@ let debugPanel;
 function createDebugPanel() {
     debugPanel = document.createElement('div');
     debugPanel.style.position = 'fixed';
-    debugPanel.style.top = '10px';
+    debugPanel.style.bottom = '10px';
     debugPanel.style.left = '10px';
-    debugPanel.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    debugPanel.style.backgroundColor = 'rgba(0,0,0,0.3)';
     debugPanel.style.color = 'white';
-    debugPanel.style.padding = '10px';
+    debugPanel.style.padding = '20px';
     debugPanel.style.fontFamily = 'monospace';
     debugPanel.style.zIndex = '1000';
     document.body.appendChild(debugPanel);
@@ -289,7 +289,7 @@ function compactGLB(bool) {
 
     const radius = torus.geometry.parameters.radius;
 
-    const targetPositionZ = bool ? -35 : -50;
+    const targetPositionZ = bool ? -45 : -50;
     const targetPositionY = bool ? -20 : -((radius + 5)/2);
     const targetScale = bool ? 16 : 10;
 
@@ -313,7 +313,7 @@ function compactGLB(bool) {
         }
 
         const animationProgress = currentTime / totalDuration;
-        animationSpeed = Math.max(0.2 - (scrollPercentage * 2), 0.01);
+        animationSpeed = Math.max(0.2 - (scrollPercentage * 3), 0.01);
 
 
         // Instead of using setEffectiveTimeScale, we'll adjust the update delta
@@ -366,9 +366,9 @@ window.compactGLB = compactGLB;
 function compactTorus(bool) {
     if (!torus) return; // Ensure the torus exists
 
-    const targetRadius = bool ? 10 : 24; // Smaller radius when compact
-    const targetTubeRadius = bool ? 0.15 : 0.2; // Smaller tube radius when compact
-    const targetPositionZ = bool ? -40 : -30; // Move closer when compact
+    const targetRadius = bool ? 12 : 24; // Smaller radius when compact
+    const targetTubeRadius = bool ? 0.3 : 0.2; // Smaller tube radius when compact
+    const targetPositionZ = bool ? -60 : -30; // Move closer when compact
     const targetPositionY = bool ? 0 : 0;
 
     const duration = 2000; // Duration of the animation in milliseconds
